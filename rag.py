@@ -14,6 +14,22 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
 
+# Few-shot examples for better performance
+FEW_SHOT_EXAMPLES = [
+    {
+        "question": "A 45-year-old man presents with chest pain and shortness of breath. ECG shows ST elevation in leads II, III, and aVF. Which coronary artery is most likely occluded?",
+        "options": {"A": "Left anterior descending", "B": "Right coronary artery", "C": "Left circumflex", "D": "Left main coronary artery"},
+        "reasoning": "ST elevation in leads II, III, and aVF indicates an inferior wall MI, which is typically caused by RCA occlusion.",
+        "answer": "B"
+    },
+    {
+        "question": "A 25-year-old woman has a positive pregnancy test and last menstrual period 8 weeks ago. She reports vaginal bleeding and cramping. Pelvic exam shows a closed cervix. What is the most likely diagnosis?",
+        "options": {"A": "Inevitable abortion", "B": "Threatened abortion", "C": "Incomplete abortion", "D": "Missed abortion"},
+        "reasoning": "Bleeding with cramping but closed cervix in early pregnancy suggests threatened abortion.",
+        "answer": "B"
+    }
+]
+
 
 class MedicalRAG:
     def __init__(self, api_key: str, pdf_directory: str = "medical_pdfs", 
@@ -191,7 +207,7 @@ class MedicalRAG:
 
     def answer_with_rag(self, question: str, options: Dict[str, str], 
                        system_prompt: str, top_k: int = 3) -> str:
-        """Answer a question using RAG"""
+        """Answer a question using RAG with few-shot examples"""
         # Retrieve context
         context_chunks = self.retrieve_relevant_context(question, top_k)
         
@@ -201,8 +217,21 @@ class MedicalRAG:
         
         for i, chunk in enumerate(context_chunks)])
         
+        # Build prompt with few-shot examples
+        prompt = "Here are some examples:\n\n"
+        
+        for i, example in enumerate(FEW_SHOT_EXAMPLES, 1):
+            prompt += f"Example {i}:\n"
+            prompt += f"Question: {example['question']}\n\nOptions:\n"
+            for letter, text in sorted(example['options'].items()):
+                prompt += f"{letter}. {text}\n"
+            prompt += f"\nThinking: {example['reasoning']}\n"
+            prompt += f"Answer: {example['answer']}\n\n"
+        
+        prompt += "Now answer this question:\n\n"
+        
         if context_chunks:
-            enhanced_prompt = f"""Based on the following medical context, answer the question.
+            prompt += f"""Based on the following medical context, answer the question.
 
 CONTEXT:
 {context_text}
@@ -212,21 +241,20 @@ QUESTION: {question}
 OPTIONS:
 """
             for letter, text in sorted(options.items()):
-                enhanced_prompt += f"{letter}. {text}\n"
+                prompt += f"{letter}. {text}\n"
             
-            enhanced_prompt += "\nBased on the context provided, respond with ONLY the letter of the correct answer (A, B, C, or D)."
+            prompt += "\nThink through this step-by-step, then respond with ONLY the letter of the correct answer (A, B, C, or D)."
         else:
-
-            enhanced_prompt = f"Question: {question}\n\nOptions:\n"
+            prompt += f"Question: {question}\n\nOptions:\n"
             for letter, text in sorted(options.items()):
-                enhanced_prompt += f"{letter}. {text}\n"
-            enhanced_prompt += "\nPlease respond with ONLY the letter of the correct answer (A, B, C, or D)."
+                prompt += f"{letter}. {text}\n"
+            prompt += "\nThink through this step-by-step, then respond with ONLY the letter of the correct answer (A, B, C, or D)."
         
         resp = self.client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": enhanced_prompt}
+                {"role": "user", "content": prompt}
             ],
             temperature=0.1
         )
