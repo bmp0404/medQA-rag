@@ -304,7 +304,7 @@ def main():
     improvement_rate = correct_phase2 / len(wrong_questions) if wrong_questions else 0
     
     print(f"\n" + "=" * 60)
-    print(f"📊 FINAL RESULTS:")
+    print(f"FINAL RESULTS:")
     print(f"   Phase 1 (No RAG): {correct_phase1}/{NUM_QUESTIONS} = {phase1_accuracy:.1%}")
     print(f"   Phase 2 (RAG on wrong answers): {correct_phase2}/{len(wrong_questions)} = {improvement_rate:.1%}")
     print(f"   Final Score: {final_correct}/{NUM_QUESTIONS} = {final_accuracy:.1%}")
